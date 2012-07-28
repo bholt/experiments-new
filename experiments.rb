@@ -30,14 +30,20 @@ def run(cmd)
   cmdout = ""
   cmderr = ""
   status = Open4::popen4(cmd) do |pid, stdin, stdout, stderr|
-    stdout.each_line{|l| puts l; cmdout += l }
+    f = File.open("logs/#{pid}.log", "w")
+    stdout.each_line do |l|
+      #puts l
+      f << l
+      cmdout += l
+    end
   end
   if ($opt_err_fatal && cmderr.length > 0) || not(status.success?) then
-    puts "error! #{status}\n### stdout ###\n#{cmdout}\n### stderr ###\n#{cmderr}"
+    #puts "error! #{status}\n### stdout ###\n#{cmdout}\n### stderr ###\n#{cmderr}"
     return nil
   else
     return cmdout + cmderr
   end
+  f.close
 end
 
 # return sha of the most recent commit (string)
@@ -227,6 +233,8 @@ def csv_write_row(openfile, record, writeHeader)
   openfile.write("\n")
 end
 
+require 'thread'
+
 # enumerate and run all experiments dictated by command and set of parameters
 # insert into table if specified (table should be a symbol)
 def run_experiments(cmd_template, dict, dbfile, table, &parse)
@@ -245,54 +253,67 @@ def run_experiments(cmd_template, dict, dbfile, table, &parse)
 
   db = Sequel.sqlite($exp_db)
 
+  threads = []
+  done = 0
+  id = 0
+  m = Mutex.new
+
   enumerate_exps(dict) do |params|
-    current_exp_num+=1
-    puts "------"
-    puts "experiment: #{current_exp_num} / #{total_num_exps} (#{Time.now})"
-    check_rows = params
-    if $opt_rerun_on_diff then check_rows=check_rows.merge({commit: info[:commit]}) end
-    if $opt_include_tag then check_rows=check_rows.merge({tag: info[:tag]}) end
-    if !$opt_force && !$opt_as_csv && run_already?(table, check_rows, db)
-      print "skipping... "
-      ap params, {multiline:false}
-      next
-    end
-    # otherwise, execute and insert
-    cmd = cmd_template % params # substitute params into template
-    puts cmd # verbose
-    cout = run(cmd)
-    if cout == nil
-         # if there was an error, try next experiment
-         print "error!"
+    threads << Thread.new(id, params) { |id, params|
+      current_exp_num+=1
+      puts "------"
+      puts "<#{id}> experiment: #{current_exp_num} / #{total_num_exps} (#{Time.now})"
+      check_rows = params
+      if $opt_rerun_on_diff then check_rows=check_rows.merge({commit: info[:commit]}) end
+      if $opt_include_tag then check_rows=check_rows.merge({tag: info[:tag]}) end
+      if !$opt_force && !$opt_as_csv && run_already?(table, check_rows, db)
+        print "<#{id}> skipping... "
+        ap params, {multiline:false}
         next
-    end
+      end
+      # otherwise, execute and insert
+      cmd = cmd_template % params # substitute params into template
+      puts cmd # verbose
+      cout = run(cmd)
+      if cout == nil
+           # if there was an error, try next experiment
+           print "<#{id}> error!"
+          next
+      end
 
-    datas = parse.call(cout) # get dict (or array of dicts) of data from user-specified parser
-    if (datas.length == 0) then
-      puts "no data found, must have been an error!"
-      next
-    end
+      datas = parse.call(cout) # get dict (or array of dicts) of data from user-specified parser
+      if (datas.length == 0) then
+        puts "<#{id}> no data found, must have been an error!"
+        next
+      end
 
-    # box up data into an array (so we can easily handle multiple data records if needed)
-    datas = [datas] if datas.is_a? Hash
-   
-    datas.each do |data|
-      new_record = params.merge(info).merge(data)
-      ap new_record
-      if not $opt_noinsert then    
-        if $opt_as_csv then 
-            File.open($opt_csvfn, "a") do |csvfile|
-                csv_write_row(csvfile, new_record, csvfirst)
-                csvfirst = false
-            end
-        else
-            # create table and columns if necessary
-            t = prepare_table(table, new_record, db)
-            t.insert(new_record)
+      # box up data into an array (so we can easily handle multiple data records if needed)
+      datas = [datas] if datas.is_a? Hash
+     
+      datas.each do |data|
+        new_record = params.merge(info).merge(data)
+        ap new_record
+        if not $opt_noinsert then    
+          if $opt_as_csv then 
+              File.open($opt_csvfn, "a") do |csvfile|
+                  csv_write_row(csvfile, new_record, csvfirst)
+                  csvfirst = false
+              end
+          else
+              # create table and columns if necessary
+            m.synchronize {
+              t = prepare_table(table, new_record, db)
+              t.insert(new_record)
+            }
+          end
         end
       end
-    end
+      done += 1
+      puts "<#{id}> completed (#{done})"; STDOUT.flush
+    }
+    id += 1
   end
+  threads.each{|t| t.join() }
 end
 
 # Regex utility stuff
