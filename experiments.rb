@@ -94,6 +94,9 @@ def parse_cmdline_options()
     opts.on('-D', '--rerun-diff', "Rerun experiments where commit is different") { $opt_rerun_on_diff = true }
     $opt_include_tag = false
     opts.on('-t', '--include-tag', "Include tag when deciding to rerun.") { $opt_include_tag = true }
+    $opt_dry_run = false
+    opts.on('-y', '--dry-run', "Don't actually run any experiments. Just print the commands") { $opt_dry_run = true }
+   
     yield opts if block_given?
   end
   optparse.parse!
@@ -260,6 +263,11 @@ def run_experiments(cmd_template, dict, dbfile, table, &parse)
     # otherwise, execute and insert
     cmd = cmd_template % params # substitute params into template
     puts cmd # verbose
+    
+    # don't execute if dry-run
+    if $opt_dry_run then next end
+   
+    # execute 
     cout = run(cmd)
     if cout == nil
          # if there was an error, try next experiment
