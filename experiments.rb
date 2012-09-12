@@ -309,9 +309,13 @@ REG_HASH = "{.*}"
 
 class MatchData
   def dictionize
-    name_syms = names.collect{|v| v.to_sym }
-    converted_caps = captures.map{|s| s.match(REG_NUM) ? s.to_f : s }
-    return Hash[name_syms.zip(converted_caps)]
+    h = {}
+    names .zip captures do |name, cap|
+      if cap then
+        h[name.to_sym] = cap.match(REG_NUM) ? cap.to_f : cap
+      end
+    end
+    return h
   end
 end
 
