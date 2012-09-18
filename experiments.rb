@@ -174,13 +174,16 @@ end
 def prepare_table(table, new_record, db = Sequel.sqlite($exp_db))
   # create table if it doesn't already exist
   db.create_table?(table) { primary_key :id }
-    
+  
+
   # check each column exists and add it if it doesn't
   new_record.each_pair do |k,v|
     if not db[table].columns.include? k then
+      # remove any nil values
       if (v == nil) then
-        puts "Can't create column from 'nil' value."
-        exit()
+        puts "Warning: can't create column (#{k}) from 'nil' value, ignoring."
+        new_record.delete(k)
+        next
       end
       db.add_column(table, k, v.class)
     end
@@ -329,9 +332,13 @@ REG_HASH = "{.*}"
 
 class MatchData
   def dictionize
-    name_syms = names.collect{|v| v.to_sym }
-    converted_caps = captures.map{|s| s.match(REG_NUM) ? s.to_f : s }
-    return Hash[name_syms.zip(converted_caps)]
+    h = {}
+    names .zip captures do |name, cap|
+      if cap then
+        h[name.to_sym] = cap.match(REG_NUM) ? cap.to_f : cap
+      end
+    end
+    return h
   end
 end
 
