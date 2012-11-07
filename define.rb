@@ -90,3 +90,27 @@ end
 # make a bunch of combinators for doing cartesian products and zip products of parameters, etc.
 
 puts $e.inspect
+
+
+
+# more ideas
+Experiments do
+  
+  { scale: [23, 24] } | { ppn: [2, 3] }  
+
+# or ----------------------------------------
+  params {
+    ncores{nnode*ppn}
+  }
+
+  run {
+    ( scale(23,24) | ppn(2,3) ) * bfs("bfs_beamer") * nworker(1024)
+  }
+
+  run {
+    # something like...
+    scale,ppn = (23,2), (24,3)
+  }
+end
+
+
