@@ -70,6 +70,23 @@ $e = Builder.new do
   cmd "echo %{scale} %{nnode}"
 
   run { scale 23; puts "ran #{self}" }
+  
+  # generate cartesian product
+  run {
+    nworkers 1024, 2048, 4096
+    ppn 4
+  }
+  
+  # zip iter
+  zip {
+    a 1, 2, 3
+    b 2, 4, 8
+  }
+  
 end
+
+# generate GLOG parameters from name, construct
+
+# make a bunch of combinators for doing cartesian products and zip products of parameters, etc.
 
 puts $e.inspect
