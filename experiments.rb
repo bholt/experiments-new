@@ -3,9 +3,14 @@ require "grit"
 require "sequel"
 require "open4"
 require "awesome_print"
+require "coderay"
 
 def DIR
   File.dirname(__FILE__)
+end
+
+def path(s)
+  File.expand_path s
 end
 
 def find_up_path(filename)
@@ -31,7 +36,7 @@ def run(cmd)
   cmderr = ""
   status = Open4::popen4(cmd) do |pid, stdin, stdout, stderr|
     Signal.trap("INT") { Process.kill("INT", pid) }
-    stdout.each_line{|l| puts l; cmdout += l }
+    #stdout.each_line{|l| puts CodeRay.scan(l, :javascript).term; cmdout += l }
   end
   if ($opt_err_fatal && cmderr.length > 0) || not(status.success?) then
     puts "error! #{status}\n### stdout ###\n#{cmdout}\n### stderr ###\n#{cmderr}"
