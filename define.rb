@@ -55,6 +55,10 @@ class Builder
   #def method_missing(selector, *args, &blk)
     #@params.method(selector).call(*args)
   #end
+  def database(dbpath, dbtable)
+    @dbpath = dbpath
+    @dbtable = dbtable
+  end
 end
 
 #def experiments(&blk)
@@ -95,6 +99,7 @@ puts $e.inspect
 
 # more ideas
 Experiments do
+  database "~/exp/grappa.db", :graph500
   
   { scale: [23, 24] } | { ppn: [2, 3] }  
 
