@@ -1,0 +1,3 @@
+[submodule "pyslurm"]
+	path = pyslurm
+	url = git://github.com/gingergeeks/pyslurm
