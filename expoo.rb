@@ -102,6 +102,15 @@ class Experiments
   # Run a set of experiments, merging this block's params into @params.
   def run(&blk) enumerate_experiments(Params.new(&blk)) end
 
+  # Parser
+  def parser(&blk)
+    if blk.arity != 1
+      $stderr.puts "Error: invalid parser."
+      exit 1
+    end
+    @parser = blk
+  end
+
   # END DSL methods
   #################################
 
