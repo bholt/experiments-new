@@ -45,12 +45,12 @@ class Params < Hash
   end
 end
 
-def parse_cmdline(opt)
+def parse_cmdline(opt=nil)
   opt = { :force => false,
           :no_insert => false,
           :include_tag => true,
           :dry_run => false
-        }.merge(opt)
+        }.merge(opt || {})
 
   require 'optparse'
   parser = OptionParser.new do |p|
@@ -65,21 +65,23 @@ def parse_cmdline(opt)
 end
 
 class Experiments
-  include Helpers
+  include Helpers::Sqlite
+  include Helpers::DSL
 
   def initialize(dbpath, dbtable, &dsl_code)
     @dbpath = dbpath
     @dbtable = dbtable
-    @db = Sequel.new(@dbpath)
+    @db = Sequel.sqlite(@dbpath)
     @cmd = nil
     @slurm = Cloister::Slurm.new
+    @params = {}
 
     # fill 'params' with things like 'tag', 'run_at', etc. that are not usually specified
     @params.merge!(common_info())
 
     @opt = parse_cmdline()
 
-    DSL.eval_dsl_code(&dsl_code)
+    eval_dsl_code(&dsl_code)
   end
 
   #################################

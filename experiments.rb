@@ -60,7 +60,7 @@ end
 def common_info()
   {
     :commit => current_commit(),
-    :run_at => Time.now,
+    :run_at => Time.now.to_s,
     :tag => current_tag()
   }
 end
