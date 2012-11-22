@@ -2,6 +2,7 @@
 require 'experiments'
 require 'cloister'
 require 'colored'
+require 'pry'
 
 module Helpers
   module Sqlite
@@ -62,6 +63,7 @@ def parse_cmdline(opt=nil)
     p.on('-t', '--[no-]include-tag', "Include tag when deciding to rerun.") {|b| opt[:include_tag] = b }
   end
   parser.parse!
+  opt
 end
 
 class Experiments
@@ -123,19 +125,22 @@ class Experiments
       print "Created experiment: ".green; ap p
       puts "  " + c.black
 
-      if not @opt[:dry_run] && (not run_already?(@dbtable, p, @db) || @opt[:force])
-        run_experiment(c, p)
+      if not @opt[:dry_run]
+        if (not run_already?(@dbtable, p, @db) || @opt[:force])
+          run_experiment(c, p)
+        end
       end
     end
   end
 
   def run_experiment(cmd, params)
     jobid = @slurm.run(params) {
+      @@_not_isolated_vars = :global
       require 'expoo'
       r,w = IO.pipe
       pid = Process.spawn(cmd, [:out,:err]=>w)
       w.close
-      pout = ""
+      pout = ''
       r.each_line {|l|
         pout += l
         puts l.strip
