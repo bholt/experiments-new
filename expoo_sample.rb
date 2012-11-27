@@ -1,9 +1,9 @@
 #!/usr/bin/env ruby
-require './expoo.rb'
+require 'expoo'
 
 Experiments.new('test.db', :test) do
   # command that will be excuted on the command line, with variables in %{} substituted
-  cmd "echo '%{a} %{b} %{c}'"
+  cmd 'echo %{a} %{b} %{c}'
   
   # Block that takes the stdout of the shell command and parses it into a Hash
   # which will be incorporated into the record inserted into the database.

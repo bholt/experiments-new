@@ -2,7 +2,7 @@
 require 'experiments'
 require 'cloister'
 require 'colored'
-require 'pry'
+require 'pry-debugger'
 
 module Helpers
   module Sqlite
@@ -50,7 +50,8 @@ def parse_cmdline(opt=nil)
   opt = { :force => false,
           :no_insert => false,
           :include_tag => true,
-          :dry_run => false
+          :dry_run => false,
+          :interactive => false
         }.merge(opt || {})
 
   require 'optparse'
@@ -61,9 +62,28 @@ def parse_cmdline(opt=nil)
     p.on('-n', '--no-insert', "Run experiments, but don't insert results in database.") { opt[:no_insert] = true }
     p.on('-y', '--dry-run', "Don't actually run any experiments. Just print the commands.") { opt[:dry_run] = true }
     p.on('-t', '--[no-]include-tag', "Include tag when deciding to rerun.") {|b| opt[:include_tag] = b }
+    p.on('-i', '--interactive', "Enter interactive mode (pry prompt) after initializing.") { opt[:interactive] = true }
   end
   parser.parse!
   opt
+end
+
+class Experiment
+  attr_reader :cmd, :params, :jobid
+
+  def initialize(cmd, params)
+    @cmd = cmd
+    @params = params
+    @jobid = nil
+  end
+
+  def to_s
+    '( '.blue +
+    '{ '.red + params.map{|n,p| "#{n}:".green + p.to_s.yellow}.join(', ') + ' }'.red +
+    ", " + @cmd.black +
+    ' )'.blue
+  end
+
 end
 
 class Experiments
@@ -75,15 +95,20 @@ class Experiments
     @dbtable = dbtable
     @db = Sequel.sqlite(@dbpath)
     @cmd = nil
-    @slurm = Cloister::Slurm.new
+    @slurm = Cloister::Batch.new
     @params = {}
+    @experiments = {}
 
     # fill 'params' with things like 'tag', 'run_at', etc. that are not usually specified
-    @params.merge!(common_info())
+    @common_info = common_info()
 
     @opt = parse_cmdline()
 
     eval_dsl_code(&dsl_code)
+
+    status
+
+    self.pry if @opt[:interactive]
   end
 
   #################################
@@ -99,6 +124,7 @@ class Experiments
 
   # Allow looking up experiments with aliases (currently just index in experiments array)
   def exp(a) @experiments[@job_aliases[a]] end
+  def job(a) exp(a) end
 
   # Set command template string
   def cmd(c) @cmd = c end
@@ -112,41 +138,61 @@ class Experiments
       $stderr.puts "Error: invalid parser."
       exit 1
     end
-    @parser = blk
+    @parser = SerializableProc.new(&blk)
+  end
+
+  def tail(a)
+    begin
+      j = @slurm.jobs[@job_aliases[a]]
+      j.tail
+    rescue
+      puts "Unable to tail alias: #{a}, job: #{@job_aliases[a]}."
+    end
+  end
+  def view(a)
+    begin
+      j = @slurm.jobs[@job_aliases[a]]
+      j.cat
+    rescue
+      puts "Unable to cat alias: #{a}, job: #{@job_aliases[a]}."
+    end
   end
 
   # END DSL methods
   #################################
 
-  def enumerate_experiments(override_params)
-    params = @params.merge(override_params)
-    enumerate_exps(params) do |p|
-      c = @cmd % p
-      print "Created experiment: ".green; ap p
-      puts "  " + c.black
+  def run_experiment(e)
+    e_command = e.cmd
+    e_params = e.params
 
-      if not @opt[:dry_run]
-        if (not run_already?(@dbtable, p, @db) || @opt[:force])
-          run_experiment(c, p)
-        end
-      end
-    end
-  end
-
-  def run_experiment(cmd, params)
-    jobid = @slurm.run(params) {
+    jobid = @slurm.run(e.params) {
       @@_not_isolated_vars = :global
       require 'expoo'
-      r,w = IO.pipe
-      pid = Process.spawn(cmd, [:out,:err]=>w)
-      w.close
+      require 'open3'
+      pid = -1
       pout = ''
-      r.each_line {|l|
-        pout += l
-        puts l.strip
+
+      puts "running..."
+
+      Open3.popen2e(e_command) {|i,oe,waiter|
+        pid = waiter.pid
+        oe.each_line {|l|
+          pout += l
+          puts l.strip
+        }
+        exit_status = waiter.value
+        if not exit_status.success? then puts "Error!"; return end
       }
-      Process.wait(pid)
-      if not $?.success? then puts "Error!"; return end
+      # r,w = IO.pipe
+      # pid = Process.spawn("#{e_command}", {[:out,:err]=>w})
+      # w.close
+      # pout = ''
+      # r.each_line {|l|
+      #   pout += l
+      #   puts l.strip
+      # }
+      # Process.wait(pid)
+      # if not $?.success? then puts "Error!"; return end
 
       results = @parser[pout]
       if not results || results.size == 0 then puts "Error! No results."; return end
@@ -155,23 +201,39 @@ class Experiments
       results = [results] if results.is_a? Hash
 
       results.each {|d|
-        new_record = params.merge(d)
+        new_record = e_params.merge(d)
         ap new_record # print
-        Sqlite.insert(@dbname, @dbtable, new_record) unless @opt[:noinsert]
+        insert(@dbname, @dbtable, new_record) unless @opt[:noinsert]
       }
     }
-    @experiments[jobid] = params
+    return jobid
+  end
+
+  def enumerate_experiments(override_params)
+    params = @params.merge(@common_info).merge(override_params)
+    enumerate_exps(params) do |p|
+      c = @cmd % p
+      e = Experiment.new(c, p)
+      print "Experiment".blue; puts e.to_s
+
+      if not @opt[:dry_run] && (not run_already?(@dbtable, p, @db) || @opt[:force])
+        jobid = run_experiment(e)
+        @experiments[jobid] = e
+      end
+    end
   end
 
   def status
-    @job_aliases = []
+    @job_aliases = {}
     @slurm.jobs.each_with_index {|(id,job),index|
-      puts "[#{'%2d'%index}]".blue + " " + job.to_s
-      @job_aliases << id  # so user can refer to an experiment by a shorter number (or alias)
+      puts "[#{'%2d'%index}]".cyan + " " + job.to_s
+      @job_aliases[index] = id  # so user can refer to an experiment by a shorter number (or alias)
       if @experiments.include? id  # if this job is one of our experiments...
         # display what job it is...
-        print '    '; ap @experiments[id]
+        puts @experiments[id].to_s
       end
+      puts '------------------'.black
     }
+    return
   end
 end # class Experiments
