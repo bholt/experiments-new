@@ -2,7 +2,6 @@
 require 'experiments'
 require './slurm_ffi'
 require 'colored'
-require 'pry-debugger'
 require 'securerandom'
 require 'sourcify'
 
