@@ -4,6 +4,8 @@ require './slurm_ffi'
 require 'colored'
 require 'securerandom'
 require 'sourcify'
+require 'set'
+require 'pry'
 
 class Hash
   def to_s
@@ -186,7 +188,7 @@ class Experiment
 
 end
 
-class Experiments
+class Igor
   include Helpers::Sqlite
   include Helpers::DSL
 
@@ -271,6 +273,7 @@ class Experiments
     rescue
       puts "Unable to cat alias: #{a}, job: #{@job_aliases[a]}."
     end
+    return j.out_file
   end
 
   # END DSL methods
@@ -283,14 +286,14 @@ class Experiments
   def setup_experiment(p)
     d = cloister_dir
 
-    f = "#{d}/cloister.#{Process.pid}.#{SecureRandom.hex(3)}."
+    f = "#{d}/cloister.#{Process.pid}.#{SecureRandom.hex(3)}.bin"
     fout = "#{d}/cloister.%j.out"
 
     e = Experiment.new(p, self, f)
 
     File.open(f, 'w') {|o| o.write Marshal.dump(e) }
 
-    cmd = "#{File.dirname(__FILE__)}/sbatch.rb '#{f}'"
+    cmd = "#{File.dirname(__FILE__)}/igor_trampoline.rb '#{f}'"
 
     s = `sbatch --nodes=#{p[:nnode]} --ntasks-per-node=#{p[:ppn]} #{"--partition=#{p[:partition]}" if p[:partition]} --output=#{fout} --error=#{fout} #{cmd}`
 
@@ -334,6 +337,10 @@ class Experiments
       end
       # puts '------------------'.black
     }
-    return
+    return 'status'
   end
-end # class Experiments
+end # class Igor
+
+# def Igor(&blk)
+#   Igor.new(&blk)
+# end
