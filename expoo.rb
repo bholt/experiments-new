@@ -1,12 +1,21 @@
 #!/usr/bin/env ruby
 require 'experiments'
+require './slurm_ffi'
 require 'colored'
 require 'pry-debugger'
+require 'securerandom'
+require 'sourcify'
+
+class Hash
+  def to_s
+    '{ '.red + map{|n,p| "#{n}:".green + p.to_s.yellow}.join(', ') + ' }'.red
+  end
+end
 
 module Helpers
   module Sqlite
-    def insert(dbname, dbtable, record)
-      db = Sequel.sqlite(dbname)
+    def insert(dbpath, dbtable, record)
+      db = Sequel.sqlite(dbpath)
      
       # ensure there are fields to hold this record
       tbl = prepare_table(dbtable, record, db)
@@ -73,6 +82,7 @@ class BatchJob
     }
   end
   def cat
+    out.seek(0)
     puts out.read
   end
 end
@@ -81,6 +91,7 @@ end
 class Params < Hash
   include Helpers::DSL
   def initialize(&dsl_code)
+    merge!({nnode:1, ppn:1})
     eval_dsl_code(&dsl_code) if dsl_code
   end
   # Arbitrary method calls create new entries in Hash
@@ -115,27 +126,30 @@ end
 
 class Experiment
   include Helpers::Sqlite
-  attr_reader :cmd, :params, :jobid
+  attr_reader :command, :params, :jobid, :serialized_file
 
   def initialize(params, exps, serialized_file)
     @command = exps.command
     @params = params
     @jobid = nil
-    @parser = exps.parser
-    @dbname = exps.dbname
+    @parser_str = exps.parser.to_source
+    @dbpath = exps.dbpath
     @dbtable = exps.dbtable
     @opt = exps.opt
     @serialized_file = serialized_file
   end
 
-  def run(e)
+  def run()
     require 'open3'
+    require 'experiments'
     pid = -1
     pout = ''
 
-    puts "running..."
+    @parser = eval(@parser_str)
+
+    # puts "running..."
     c = @command % @params
-    puts "#{c}\n--------------".black
+    # puts "#{c}\n--------------".black
 
     Open3.popen2e(c) {|i,oe,waiter|
       pid = waiter.pid
@@ -153,21 +167,21 @@ class Experiment
     results = [results] if results.is_a? Hash
 
     results.each {|d|
-      new_record = e.params.merge(d)
+      new_record = params.merge(d)
       ap new_record # print
-      insert(@dbname, @dbtable, new_record) unless @opt[:noinsert]
+      insert(@dbpath, @dbtable, new_record) unless @opt[:noinsert]
     }
     return true # success
   end
 
   def to_s
-    color_command(@command % @params)
+    Experiment.color_command(@command, @params)
   end
 
-  def self.color_command(command)
+  def self.color_command(command, params)
     '( '.blue +
     '{ '.red + params.map{|n,p| "#{n}:".green + p.to_s.yellow}.join(', ') + ' }'.red +
-    ", " + command.black +
+    ", " + (command % params).black +
     ' )'.blue
   end
 
@@ -177,20 +191,25 @@ class Experiments
   include Helpers::Sqlite
   include Helpers::DSL
 
-  attr_reader :dbpath, :dbtable, :command, :opt
+  attr_reader :dbpath, :dbtable, :command, :opt, :parser_file
 
-  def initialize(dbpath, dbtable, &dsl_code)
-    @dbpath = dbpath
-    @dbtable = dbtable
+  def initialize(&dsl_code)
+    @dbpath = nil
+    @dbtable = nil
     @db = Sequel.sqlite(@dbpath)
     @command = nil
     @params = {}
     @experiments = {}
+    @jobs = {}
+    @running = Set.new
 
     # fill 'params' with things like 'tag', 'run_at', etc. that are not usually specified
     @common_info = common_info()
 
     @opt = parse_cmdline()
+
+    # make sure directory where we'll put things exists
+    begin Dir.mkdir(cloister_dir) rescue Errno::EEXIST end
 
     eval_dsl_code(&dsl_code)
 
@@ -217,6 +236,11 @@ class Experiments
   # Set command template string
   def cmd(c) @command = c end
 
+  def database(dbpath, dbtable)
+    @dbpath = dbpath
+    @dbtable = dbtable
+  end
+
   # Run a set of experiments, merging this block's params into @params.
   def run(&blk) enumerate_experiments(Params.new(&blk)) end
 
@@ -229,12 +253,13 @@ class Experiments
       $stderr.puts "Error: invalid parser."
       exit 1
     end
-    @parser = SerializableProc.new(&blk)
+
+    @parser = blk
   end
 
   def tail(a)
     begin
-      j = @slurm.jobs[@job_aliases[a]]
+      j = @jobs[@job_aliases[a]]
       j.tail
     rescue
       puts "Unable to tail alias: #{a}, job: #{@job_aliases[a]}."
@@ -242,7 +267,7 @@ class Experiments
   end
   def view(a)
     begin
-      j = @slurm.jobs[@job_aliases[a]]
+      j = @jobs[@job_aliases[a]]
       j.cat
     rescue
       puts "Unable to cat alias: #{a}, job: #{@job_aliases[a]}."
@@ -252,22 +277,30 @@ class Experiments
   # END DSL methods
   #################################
 
-  def setup_experiment(p)
-    d = "#{Dir.pwd}/.cloister"
-    begin Dir.mkdir(d) rescue Errno::EEXIST end
+  def cloister_dir
+    return "#{Dir.pwd}/.cloister"
+  end
 
-    f = "#{d}/cloister.#{Process.pid}.#{SecureRandom.hex(3)}.bin"
+  def setup_experiment(p)
+    d = cloister_dir
+
+    f = "#{d}/cloister.#{Process.pid}.#{SecureRandom.hex(3)}."
+    fout = "#{d}/cloister.%j.out"
 
     e = Experiment.new(p, self, f)
 
     File.open(f, 'w') {|o| o.write Marshal.dump(e) }
 
     cmd = "#{File.dirname(__FILE__)}/sbatch.rb '#{f}'"
-    s = `sbatch --nodes=#{flags[:nnode]} --ntasks-per-node=#{flags[:ppn]} --partition=#{flags[:partition]} --output=#{fout} --error=#{fout} #{cmd}`
+
+    s = `sbatch --nodes=#{p[:nnode]} --ntasks-per-node=#{p[:ppn]} #{"--partition=#{p[:partition]}" if p[:partition]} --output=#{fout} --error=#{fout} #{cmd}`
+
     jobid = s[/Submitted batch job (\d+)/,1].to_i
 
     @jobs[jobid] = BatchJob.new(jobid, fout.gsub(/%j/,jobid.to_s))
     @running << jobid
+
+    @experiments[jobid] = e
   end
 
   def enumerate_experiments(override_params)
@@ -275,12 +308,11 @@ class Experiments
     enumerate_exps(params) do |p|
       # c = @command % p
       # e = Experiment.new(c, p)
-      print "Experiment".blue; puts Experiment.color_command(@command % p)
+      print "Experiment".blue; puts Experiment.color_command(@command, p)
 
       if not @opt[:dry_run] && (not run_already?(@dbtable, p, @db) || @opt[:force])
         # jobid = run_experiment(e)
-        e = setup_experiment(p)
-        @experiments[e.jobid] = e
+        setup_experiment(p)
       end
     end
   end
@@ -294,10 +326,14 @@ class Experiments
       puts "[#{'%2d'%index}]".cyan + " " + job.to_s
       @job_aliases[index] = id  # so user can refer to an experiment by a shorter number (or alias)
       if @experiments.include? id  # if this job is one of our experiments...
-        # display what job it is...
-        puts @experiments[id].to_s
+        # print interesting parameters
+        p = @experiments[id].params.select{|k,v|
+          (!(@params[k] || @common_info[k])) ||
+          (@params[k].is_a? Array and @params[k].length > 1)
+        }
+        puts "     " + p.to_s
       end
-      puts '------------------'.black
+      # puts '------------------'.black
     }
     return
   end
