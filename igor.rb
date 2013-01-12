@@ -258,6 +258,14 @@ class Igor
     @parser = blk
   end
 
+  # Parser
+  def setup(&blk) @setup = blk end
+  
+  # END DSL methods
+  #################################
+
+  ######################
+  # Interactive methods
   def tail(a)
     begin
       j = @jobs[@job_aliases[a]]
@@ -266,6 +274,7 @@ class Igor
       puts "Unable to tail alias: #{a}, job: #{@job_aliases[a]}."
     end
   end
+  
   def view(a)
     begin
       j = @jobs[@job_aliases[a]]
@@ -276,8 +285,28 @@ class Igor
     return j.out_file
   end
 
-  # END DSL methods
-  #################################
+  def status
+    @job_aliases = {}
+    @running.each do |jobid|
+      @jobs[jobid].update
+    end
+    @jobs.each_with_index {|(id,job),index|
+      puts "[#{'%2d'%index}]".cyan + " " + job.to_s
+      @job_aliases[index] = id  # so user can refer to an experiment by a shorter number (or alias)
+      if @experiments.include? id  # if this job is one of our experiments...
+        # print interesting parameters
+        p = @experiments[id].params.select{|k,v|
+          (!(@params[k] || @common_info[k])) ||
+          (@params[k].is_a? Array and @params[k].length > 1)
+        }
+        puts "     " + p.to_s
+      end
+      # puts '------------------'.black
+    }
+    return 'status'
+  end
+  # Interactive methods
+  ##########################
 
   def cloister_dir
     return "#{Dir.pwd}/.cloister"
@@ -319,28 +348,4 @@ class Igor
     end
   end
 
-  def status
-    @job_aliases = {}
-    @running.each do |jobid|
-      @jobs[jobid].update
-    end
-    @jobs.each_with_index {|(id,job),index|
-      puts "[#{'%2d'%index}]".cyan + " " + job.to_s
-      @job_aliases[index] = id  # so user can refer to an experiment by a shorter number (or alias)
-      if @experiments.include? id  # if this job is one of our experiments...
-        # print interesting parameters
-        p = @experiments[id].params.select{|k,v|
-          (!(@params[k] || @common_info[k])) ||
-          (@params[k].is_a? Array and @params[k].length > 1)
-        }
-        puts "     " + p.to_s
-      end
-      # puts '------------------'.black
-    }
-    return 'status'
-  end
 end # class Igor
-
-# def Igor(&blk)
-#   Igor.new(&blk)
-# end
