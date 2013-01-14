@@ -1,24 +1,27 @@
-spec = Gem::Specification.new do |s|
+
+Gem::Specification.new do |gem|
 
     #required info
-    s.name = 'igor'
-    s.version = '0.1.0'
-    s.summary = 'Interactive Gathering Of Results'
-    s.files = ['experiments.rb', 'igor.rb', 'igor_trampoline.rb', 'slurm_ffi.rb']
+    gem.name = 'igor'
+    gem.version = '0.1.0'
+    gem.summary = 'Interactive Gathering Of Results'
+
+    # gem.files = ['experiments.rb', 'igor.rb', 'igor_trampoline.rb', 'slurm_ffi.rb']
+    gem.files = `git ls-files`.split($/)
 
     #dependencies
     # (these are the earliest *tested* versions)
-    s.add_dependency('grit', '>= 2.4.1')
-    s.add_dependency('awesome_print', '>= 1.0.2')
-    s.add_dependency('open4', '>= 1.3.0')
-    s.add_dependency('sequel', '>= 3.32.0')
-    s.add_dependency('sqlite3', '>= 1.3.5')
-    s.add_dependency('sourcify', '>= 0.5.0')
-    s.add_dependency('colored')
-    s.add_dependency('pry')
-    s.add_dependency('ffi')
+    gem.add_dependency('grit', '>= 2.4.1')
+    gem.add_dependency('awesome_print', '>= 1.0.2')
+    gem.add_dependency('open4', '>= 1.3.0')
+    gem.add_dependency('sequel', '>= 3.32.0')
+    gem.add_dependency('sqlite3', '>= 1.3.5')
+    gem.add_dependency('sourcify', '>= 0.5.0')
+    gem.add_dependency('colored')
+    gem.add_dependency('pry')
+    gem.add_dependency('ffi')
 
-    s.authors = ['Brandon Holt', 'Brandon Myers']
-    s.homepage = "http://github.com/bholt/experiments"
-    s.description = "DSL for running experiments over inputs and storing results in a sqlite database."
+    gem.authors = ['Brandon Holt', 'Brandon Myers']
+    gem.homepage = "http://github.com/bholt/experiments"
+    gem.description = "DSL for running experiments over inputs and storing results in a sqlite database."
 end

@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 require 'experiments'
-require './slurm_ffi'
+require 'igor/slurm_ffi'
 require 'colored'
 require 'securerandom'
 require 'sourcify'
