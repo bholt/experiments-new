@@ -192,7 +192,7 @@ class Igor
   include Helpers::Sqlite
   include Helpers::DSL
 
-  attr_reader :dbpath, :dbtable, :command, :opt, :parser_file
+  attr_reader :dbpath, :dbtable, :opt, :parser_file
 
   def initialize(&dsl_code)
     @dbpath = nil
@@ -235,12 +235,17 @@ class Igor
   def job(a) exp(a) end
 
   # Set command template string
-  def cmd(c) @command = c end
+  def command(c=nil)
+    @command = c if c
+    return @command
+  end
+  alias :cmd :command
 
   def database(dbpath, dbtable)
-    @dbpath = dbpath
+    @dbpath = File.expand_path(dbpath)
     @dbtable = dbtable
   end
+  alias :db :database
 
   # Run a set of experiments, merging this block's params into @params.
   def run(&blk) enumerate_experiments(Params.new(&blk)) end
@@ -260,7 +265,7 @@ class Igor
 
   # Parser
   def setup(&blk) @setup = blk end
-  
+
   # END DSL methods
   #################################
 
