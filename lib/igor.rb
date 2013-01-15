@@ -97,7 +97,6 @@ end
 class Params < Hash
   include Helpers::DSL
   def initialize(&dsl_code)
-    merge!({nnode:1, ppn:1})
     eval_dsl_code(&dsl_code) if dsl_code
   end
   # Arbitrary method calls create new entries in Hash
@@ -333,6 +332,10 @@ class Igor
     File.open(f, 'w') {|o| o.write Marshal.dump(e) }
 
     cmd = "#{File.dirname(__FILE__)}/igor_trampoline.rb '#{f}'"
+
+    # make sure the allocation has at least 1 process
+    p[:nnode] = 1 unless p[:nnode]
+    p[:ppn] = 1 unless p[:ppn]
 
     s = `sbatch --nodes=#{p[:nnode]} --ntasks-per-node=#{p[:ppn]} #{"--partition=#{p[:srun_partition]}" if p[:srun_partition]} --output=#{fout} --error=#{fout} #{cmd}`
 
