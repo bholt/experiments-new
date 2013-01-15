@@ -334,7 +334,7 @@ class Igor
 
     cmd = "#{File.dirname(__FILE__)}/igor_trampoline.rb '#{f}'"
 
-    s = `sbatch --nodes=#{p[:nnode]} --ntasks-per-node=#{p[:ppn]} #{"--partition=#{p[:partition]}" if p[:partition]} --output=#{fout} --error=#{fout} #{cmd}`
+    s = `sbatch --nodes=#{p[:nnode]} --ntasks-per-node=#{p[:ppn]} #{"--partition=#{p[:srun_partition]}" if p[:srun_partition]} --output=#{fout} --error=#{fout} #{cmd}`
 
     jobid = s[/Submitted batch job (\d+)/,1].to_i
 
