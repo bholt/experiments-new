@@ -16,7 +16,7 @@ Gem::Specification.new do |gem|
     gem.add_dependency('open4', '>= 1.3.0')
     gem.add_dependency('sequel', '>= 3.32.0')
     gem.add_dependency('sqlite3', '>= 1.3.5')
-    gem.add_dependency('sourcify', '>= 0.5.0')
+    gem.add_dependency('sourcify', '>= 0.6.0.rc1')
     gem.add_dependency('colored')
     gem.add_dependency('pry')
     gem.add_dependency('ffi')
