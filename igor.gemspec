@@ -21,9 +21,10 @@ Gem::Specification.new do |gem|
     gem.add_dependency('pry')
     gem.add_dependency('ffi')
     gem.add_dependency('file-tail')
-    gem.add_dependency('json')
 
     gem.authors = ['Brandon Holt', 'Brandon Myers']
+    gem.email   = ['bholt@cs.washington.edu', 'bdmyers@cs.washington.edu']
+
     gem.homepage = "http://github.com/bholt/experiments"
     gem.description = "DSL for running experiments over inputs and storing results in a sqlite database."
 end
