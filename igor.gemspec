@@ -20,6 +20,8 @@ Gem::Specification.new do |gem|
     gem.add_dependency('colored')
     gem.add_dependency('pry')
     gem.add_dependency('ffi')
+    gem.add_dependency('file-tail')
+    gem.add_dependency('json')
 
     gem.authors = ['Brandon Holt', 'Brandon Myers']
     gem.homepage = "http://github.com/bholt/experiments"

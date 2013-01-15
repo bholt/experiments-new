@@ -6,11 +6,16 @@ require 'securerandom'
 require 'sourcify'
 require 'set'
 require 'pry'
+require 'file-tail'
 
 class Hash
   def to_s
     '{ '.red + map{|n,p| "#{n}:".green + p.to_s.yellow}.join(', ') + ' }'.red
   end
+end
+
+class File
+  include File::Tail
 end
 
 module Helpers
