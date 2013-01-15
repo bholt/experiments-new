@@ -315,6 +315,13 @@ class Igor
     }
     return 'status'
   end
+
+  # shortcut to provide the pry command-line to debug a remote process
+  # usage looks something like: pry(#<Igor>)> .#{gdb 'n01', '11956'}
+  # (pry sends commands starting with '.' to the shell, but allows string interpolation)
+  def gdb(node, pid)
+    return "ssh #{node} gdb attach #{pid}"
+  end
   # Interactive methods
   ##########################
 
