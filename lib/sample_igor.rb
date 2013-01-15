@@ -10,7 +10,7 @@ Igor.new do
   # this would be interesting, and should be possible
   # command {
   #   `sbcast stuff`
-  #   `echo #{a} #{b} #{c}`
+  #   `mpirun echo #{@a} #{@b} #{@c}`
   # }
 
   # beware: the literal source given will be eval'd to create the parser for each job, no state will be transfered
@@ -22,6 +22,7 @@ Igor.new do
     a 1, 2
     b '1', '2', '3'
     c 'abc'
+    # e ->{@a*2}, ->{@a*4} # pass lambdas to do expression params
   }
 
   run { d 4; tag 'sample_tag' } # tag a set of runs as being part of a logical set 
