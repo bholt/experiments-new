@@ -102,6 +102,7 @@ class Params < Hash
   # Arbitrary method calls create new entries in Hash
   # Enables DSL syntax:
   #   Params.new { nnode 4; ppn 1, 2 }
+  # TODO: fix problem with collisions (i.e. 'partition' is already a method)
   def method_missing(selector, *args, &blk)
     self[selector.downcase.to_sym] = args
   end
