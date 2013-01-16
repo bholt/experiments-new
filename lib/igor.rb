@@ -193,21 +193,24 @@ class Experiment
 
 end
 
-class Igor
-  include Helpers::Sqlite
-  include Helpers::DSL
+module Igor
+  extend self # this is probably a really terrible thing to do
+
+  extend Helpers::Sqlite
+  extend Helpers::DSL
 
   attr_reader :dbpath, :dbtable, :opt, :parser_file
 
-  def initialize(&dsl_code)
-    @dbpath = nil
-    @dbtable = nil
-    @db = Sequel.sqlite(@dbpath)
-    @command = nil
-    @params = {}
-    @experiments = {}
-    @jobs = {}
-    @running = Set.new
+  @dbpath = nil
+  @dbtable = nil
+  @db = Sequel.sqlite(@dbpath)
+  @command = nil
+  @params = {}
+  @experiments = {}
+  @jobs = {}
+  @running = Set.new
+
+  def dsl(&dsl_code)
 
     # fill 'params' with things like 'tag', 'run_at', etc. that are not usually specified
     @common_info = common_info()
@@ -369,4 +372,8 @@ class Igor
     end
   end
 
-end # class Igor
+end # module Igor
+
+def Igor(&blk)
+  Igor.dsl(&blk)
+end
