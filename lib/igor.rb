@@ -8,14 +8,32 @@ require 'set'
 require 'pry'
 require 'file-tail'
 
+# monkeypatching
 class Hash
   def to_s
     '{ '.red + map{|n,p| "#{n}:".green + p.to_s.yellow}.join(', ') + ' }'.red
+  end
+
+  # recursively flatten nested Hashes
+  def flat_each(prefix="", &blk)
+    each do |k,v|
+      if v.is_a?(Hash)
+        v.flat_each("#{prefix}#{k}_", &blk)
+      else
+        yield "#{prefix}#{k}".to_sym, v
+      end
+    end
   end
 end
 
 class File
   include File::Tail
+end
+
+class Array
+  def all_numbers?
+    reduce(true) {|total,v| total &&= v.respond_to? :/ }
+  end
 end
 
 module Helpers
