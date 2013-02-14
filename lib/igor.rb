@@ -236,7 +236,7 @@ module Igor
     @opt = parse_cmdline()
 
     # make sure directory where we'll put things exists
-    begin Dir.mkdir(cloister_dir) rescue Errno::EEXIST end
+    begin Dir.mkdir(igor_dir) rescue Errno::EEXIST end
 
     eval_dsl_code(&dsl_code)
 
@@ -348,15 +348,15 @@ module Igor
   # Interactive methods
   ##########################
 
-  def cloister_dir
-    return "#{Dir.pwd}/.cloister"
+  def igor_dir
+    return "#{Dir.pwd}/.igor"
   end
 
   def setup_experiment(p)
-    d = cloister_dir
+    d = igor_dir
 
-    f = "#{d}/cloister.#{Process.pid}.#{SecureRandom.hex(3)}.bin"
-    fout = "#{d}/cloister.%j.out"
+    f = "#{d}/igor.#{Process.pid}.#{SecureRandom.hex(3)}.bin"
+    fout = "#{d}/igor.%j.out"
 
     e = Experiment.new(p, self, f)
 
