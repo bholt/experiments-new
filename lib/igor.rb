@@ -7,6 +7,7 @@ require 'sourcify'
 require 'set'
 require 'pry'
 require 'file-tail'
+require 'pty'
 
 # monkeypatching
 class Hash
@@ -316,6 +317,27 @@ module Igor
       puts "Unable to cat alias: #{a}, job: #{@job_aliases[a]}."
     end
     return j.out_file
+  end
+  
+  def attach(job_alias)
+    j = @jobs[@job_aliases[job_alias]]
+    job_with_step = %x{ squeue --jobs=#{j.jobid} --steps --format %i }.split[1]
+    if not job_with_step
+      puts "Job step not found, might have finished already. Try `view #{job_alias}`"
+      return
+    end
+    
+    PTY.spawn "sattach #{job_with_step}" do |r,w,pid|
+      Signal.trap("INT") { puts "exiting..."; Process.kill("INT",pid) }
+      begin
+        r.sync
+        r.each_line {|l| puts l.strip }
+      rescue Errno::EIO => e
+        # *correct* behavior is to emit an I/O error here, so ignore
+      ensure
+        ::Process.wait pid
+      end
+    end
   end
 
   def status

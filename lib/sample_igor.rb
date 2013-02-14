@@ -5,7 +5,8 @@ exe = 'graph.exe'
 
 Igor do
   database 'sample_igor.db', :test
-  command  "echo '%{a} %{b} %{c}'"
+  # command  "echo '%{a} %{b} %{c}'"
+  command "srun #{File.dirname(__FILE__)}/../examples/slow_loop.sh"
   
   sbatch_flags "--time=30:00 #{
       (`hostname` =~ /pal/) \
