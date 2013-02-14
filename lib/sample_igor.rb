@@ -3,9 +3,15 @@ require 'igor'
 
 exe = 'graph.exe'
 
-Igor.new do
+Igor do
   database 'sample_igor.db', :test
   command  "echo '%{a} %{b} %{c}'"
+  
+  sbatch_flags "--time=30:00 #{
+      (`hostname` =~ /pal/) \
+        ? '--account=pal --partition=pal' \
+        : '--partition=grappa'
+      }"
 
   # this would be interesting, and should be possible
   # command {

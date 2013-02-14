@@ -291,6 +291,8 @@ module Igor
 
   # Parser
   def setup(&blk) @setup = blk end
+    
+  def sbatch_flags(flags) @sbatch_flags = flags end
 
   # END DSL methods
   #################################
@@ -366,7 +368,9 @@ module Igor
     p[:nnode] = 1 unless p[:nnode]
     p[:ppn] = 1 unless p[:ppn]
 
-    s = `sbatch --nodes=#{p[:nnode]} --ntasks-per-node=#{p[:ppn]} #{"--partition=#{p[:srun_partition]}" if p[:srun_partition]} --output=#{fout} --error=#{fout} #{cmd}`
+    puts "sbatch --nodes=#{p[:nnode]} --ntasks-per-node=#{p[:ppn]} #{@sbatch_flags} --output=#{fout} --error=#{fout} #{cmd}"
+
+    s = `sbatch --nodes=#{p[:nnode]} --ntasks-per-node=#{p[:ppn]} #{@sbatch_flags} --output=#{fout} --error=#{fout} #{cmd}`
 
     jobid = s[/Submitted batch job (\d+)/,1].to_i
 

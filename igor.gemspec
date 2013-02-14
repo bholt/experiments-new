@@ -3,7 +3,7 @@ Gem::Specification.new do |gem|
 
     #required info
     gem.name = 'igor'
-    gem.version = '0.1.0'
+    gem.version = '0.1.1'
     gem.summary = 'Interactive Gathering Of Results'
 
     # gem.files = ['experiments.rb', 'igor.rb', 'igor_trampoline.rb', 'slurm_ffi.rb']
