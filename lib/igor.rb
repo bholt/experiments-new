@@ -89,7 +89,7 @@ class BatchJob
     end
     
     @state = sinfo[:job_state]
-    # @nodes = sinfo[:nodes]
+    @nodes = sinfo[:nodes]
     @start_time = sinfo[:start_time]
     @end_time = sinfo[:end_time]
 
@@ -356,21 +356,19 @@ module Igor
     @jobs = {}
     
     (0...jmsg[:record_count]).each do |i|
-      sinfo = Slurm::JobInfo.new(jmsg[:job_array]+i)
-      jobid = sinfo[:job_id]
-      puts "job #{sinfo[:job_id]}: user #{sinfo[:user_id]}, assoc_id #{sinfo[:assoc_id]}"
-      @jobs[jobid] = BatchJob.new(jobid,sinfo)
-      
-    end    
+      sinfo = Slurm::JobInfo.new(jmsg[:job_array]+i*Slurm::JobInfo.size)
+      if sinfo[:user_id] == Process.uid
+        jobid = sinfo[:job_id]
+        @jobs[jobid] = BatchJob.new(jobid,sinfo)
+      end
+    end
 
     Slurm.slurm_free_job_info_msg(jmsg)
   end
 
   def status
     @job_aliases = {}
-    @running.each do |jobid|
-      @jobs[jobid].update
-    end
+    update_jobs
     @jobs.each_with_index {|(id,job),index|
       puts "[#{'%2d'%index}]".cyan + " " + job.to_s
       @job_aliases[index] = id  # so user can refer to an experiment by a shorter number (or alias)
