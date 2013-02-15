@@ -343,6 +343,7 @@ module Igor
         # *correct* behavior is to emit an I/O error here, so ignore
       ensure
         ::Process.wait pid
+        Signal.trap("INT", "DEFAULT") # reset signal
       end
     end
   end
