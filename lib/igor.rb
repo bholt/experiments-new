@@ -68,25 +68,32 @@ end
 
 class BatchJob
   attr_reader :jobid, :state, :nodes, :out_file
-  def initialize(jobid, out_file)
+  def initialize(jobid,slurm_info=nil)
     @jobid = jobid
-    @out_file = out_file
-    update()
+    @out_file = BatchJob.fout.gsub(/%j/,jobid.to_s)
+    update(slurm_info) if slurm_info
+  end
+  
+  def self.fout
+    "#{Igor.igor_dir}/igor.%j.out"
   end
 
-  def update
-    jptr = FFI::MemoryPointer.new :pointer
-    Slurm.slurm_load_job(jptr, @jobid, 0)
-    jmsg = Slurm::JobInfoMsg.new(jptr.get_pointer(0))
-    raise "assertion failure" unless jmsg[:record_count] == 1
-    sinfo = Slurm::JobInfo.new(jmsg[:job_array])
-
+  def update(sinfo)
+    jmsg = nil
+    if not sinfo
+      jptr = FFI::MemoryPointer.new :pointer
+      Slurm.slurm_load_job(jptr, @jobid, 0)
+      jmsg = Slurm::JobInfoMsg.new(jptr.get_pointer(0))
+      raise "assertion failure" unless jmsg[:record_count] == 1
+      sinfo = Slurm::JobInfo.new(jmsg[:job_array])
+    end
+    
     @state = sinfo[:job_state]
-    @nodes = sinfo[:nodes]
+    # @nodes = sinfo[:nodes]
     @start_time = sinfo[:start_time]
     @end_time = sinfo[:end_time]
 
-    Slurm.slurm_free_job_info_msg(jmsg)
+    Slurm.slurm_free_job_info_msg(jmsg) if jmsg
   end
 
   def to_s()
@@ -243,7 +250,7 @@ module Igor
 
     status
 
-    self.pry if @opt[:interactive]
+    # self.pry if @opt[:interactive]
   end
 
   #################################
@@ -325,7 +332,7 @@ module Igor
     if not job_with_step
       puts "Job step not found, might have finished already. Try `view #{job_alias}`"
       return
-    end
+    end 
     
     PTY.spawn "sattach #{job_with_step}" do |r,w,pid|
       Signal.trap("INT") { puts "exiting..."; Process.kill("INT",pid) }
@@ -338,6 +345,25 @@ module Igor
         ::Process.wait pid
       end
     end
+  end
+
+  def update_jobs
+    jptr = FFI::MemoryPointer.new :pointer
+    Slurm.slurm_load_jobs(0, jptr, 0)
+    raise "unable to update jobs, slurm returned NULL" if jptr.get_pointer(0) == FFI::Pointer::NULL
+    jmsg = Slurm::JobInfoMsg.new(jptr.get_pointer(0))
+    
+    @jobs = {}
+    
+    (0...jmsg[:record_count]).each do |i|
+      sinfo = Slurm::JobInfo.new(jmsg[:job_array]+i)
+      jobid = sinfo[:job_id]
+      puts "job #{sinfo[:job_id]}: user #{sinfo[:user_id]}, assoc_id #{sinfo[:assoc_id]}"
+      @jobs[jobid] = BatchJob.new(jobid,sinfo)
+      
+    end    
+
+    Slurm.slurm_free_job_info_msg(jmsg)
   end
 
   def status
@@ -365,8 +391,14 @@ module Igor
   # usage looks something like: pry(#<Igor>)> .#{gdb 'n01', '11956'}
   # (pry sends commands starting with '.' to the shell, but allows string interpolation)
   def gdb(node, pid)
-    return "ssh #{node} gdb attach #{pid}"
+    return "ssh #{node} -t gdb attach #{pid}"
   end
+  
+  def interact
+    status
+    self.pry
+  end
+  
   # Interactive methods
   ##########################
 
@@ -378,7 +410,7 @@ module Igor
     d = igor_dir
 
     f = "#{d}/igor.#{Process.pid}.#{SecureRandom.hex(3)}.bin"
-    fout = "#{d}/igor.%j.out"
+    fout = BatchJob.fout
 
     e = Experiment.new(p, self, f)
 
@@ -396,7 +428,7 @@ module Igor
 
     jobid = s[/Submitted batch job (\d+)/,1].to_i
 
-    @jobs[jobid] = BatchJob.new(jobid, fout.gsub(/%j/,jobid.to_s))
+    @jobs[jobid] = BatchJob.new(jobid)
     @running << jobid
 
     @experiments[jobid] = e

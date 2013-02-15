@@ -33,6 +33,12 @@ module Slurm
     :JOB_PREEMPTED,    #  terminated due to preemption 
     :JOB_END     #  not a real state, last entry in table 
   )
+  
+  JobShowFlag = enum(
+    :SHOW_ALL,     0x1,
+    :SHOW_DETAIL,  0x2,
+    :SHOW_DETAIL2, 0x4
+  )
 
     # Reasons for job to be pending */
   enum :job_state_reason, [
@@ -243,7 +249,7 @@ module Slurm
         :suspend_time, :int64,  #  time job last suspended or resumed */
         :time_limit, :uint32,  #  maximum run time in minutes or INFINITE */
         :time_min, :uint32,  #  minimum run time in minutes or INFINITE */
-        :user_id, :uint32,  #  user the job runs as */
+        :user_id, :int32,  #  user the job runs as */
         :preempt_time, :int64,  #  preemption signal time */
         :wait4switch, :uint32,  #  Maximum time to wait for minimum switches */
         :wckey, :string,  #  wckey for job */
