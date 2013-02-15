@@ -1,133 +1,29 @@
 #!/usr/bin/env ruby
-require 'experiments'
-require 'igor/slurm_ffi'
 require 'colored'
 require 'securerandom'
 require 'sourcify'
-require 'set'
 require 'pry'
-require 'file-tail'
 require 'pty'
 
-# monkeypatching
-class Hash
-  def to_s
-    '{ '.red + map{|n,p| "#{n}:".green + p.to_s.yellow}.join(', ') + ' }'.red
-  end
-
-  # recursively flatten nested Hashes
-  def flat_each(prefix="", &blk)
-    each do |k,v|
-      if v.is_a?(Hash)
-        v.flat_each("#{prefix}#{k}_", &blk)
-      else
-        yield "#{prefix}#{k}".to_sym, v
-      end
-    end
-  end
-end
-
-class File
-  include File::Tail
-end
-
-class Array
-  def all_numbers?
-    reduce(true) {|total,v| total &&= v.respond_to? :/ }
-  end
-end
-
-module Helpers
-  module Sqlite
-    def insert(dbpath, dbtable, record)
-      db = Sequel.sqlite(dbpath)
-     
-      # ensure there are fields to hold this record
-      tbl = prepare_table(dbtable, record, db)
-
-      tbl.insert(record)
-    end
-  end
-
-  module DSL
-
-    def eval_dsl_code(&dsl_code)
-      # do an arity check so users of the DSL can leave off the object parameter:
-      #   ExampleDSL.new { example_call }
-      # or if they want to be more explicit:
-      #   ExampleDSL.new {|e| e.example_call }
-      if dsl_code.arity == 1      # the arity() check
-        dsl_code[self]            # argument expected, pass the object
-      else
-        instance_eval(&dsl_code)  # no argument, use instance_eval()
-      end
-    end
-
-  end
-end
-
-class BatchJob
-  attr_reader :jobid, :state, :nodes, :out_file
-  def initialize(jobid,slurm_info=nil)
-    @jobid = jobid
-    @out_file = BatchJob.fout.gsub(/%j/,jobid.to_s)
-    update(slurm_info) if slurm_info
-  end
-  
-  def self.fout
-    "#{Igor.igor_dir}/igor.%j.out"
-  end
-
-  def update(sinfo)
-    jmsg = nil
-    if not sinfo
-      jptr = FFI::MemoryPointer.new :pointer
-      Slurm.slurm_load_job(jptr, @jobid, 0)
-      jmsg = Slurm::JobInfoMsg.new(jptr.get_pointer(0))
-      raise "assertion failure" unless jmsg[:record_count] == 1
-      sinfo = Slurm::JobInfo.new(jmsg[:job_array])
-    end
-    
-    @state = sinfo[:job_state]
-    @nodes = sinfo[:nodes]
-    @start_time = sinfo[:start_time]
-    @end_time = sinfo[:end_time]
-
-    Slurm.slurm_free_job_info_msg(jmsg) if jmsg
-  end
-
-  def to_s()
-    time = @state == :JOB_COMPLETE ? total_time : elapsed_time
-    "#{@jobid}: #{@state} on #{@nodes}, time: #{time}"
-  end
-
-  def elapsed_time()
-    Time.at(Time.now.tv_sec - @start_time).gmtime.strftime('%R:%S')
-  end
-  def total_time()   Time.at(@end_time - @start_time).gmtime.strftime('%R:%S') end
-  def out()          @out ||= File.open(@out_file, 'r') end
-  def tail
-    stop_tailing = false
-    out.backward(10).tail {|l|
-      puts l
-      break if stop_tailing
-    }
-  end
-  def cat
-    out.seek(0)
-    puts out.read
-  end
-end
-
+require_relative 'experiments'
+require_relative 'igor/slurm_ffi'
+require_relative 'igor/experiment'
+require_relative 'igor/batchjob'
+require_relative 'igor/util'
 
 class Params < Hash
   include Helpers::DSL
+  
   def initialize(&dsl_code)
     eval_dsl_code(&dsl_code) if dsl_code
   end
+  
   # Arbitrary method calls create new entries in Hash
   # Enables DSL syntax:
+  #   Params.new { nnode(4); ppn(1, 2) }
+  # or even simpler...
   #   Params.new { nnode 4; ppn 1, 2 }
+  #
   # TODO: fix problem with collisions (i.e. 'partition' is already a method)
   def method_missing(selector, *args, &blk)
     self[selector.downcase.to_sym] = args
@@ -156,69 +52,6 @@ def parse_cmdline(opt=nil)
   opt
 end
 
-class Experiment
-  include Helpers::Sqlite
-  attr_reader :command, :params, :jobid, :serialized_file
-
-  def initialize(params, exps, serialized_file)
-    @command = exps.command
-    @params = params
-    @jobid = nil
-    @parser_str = exps.parser.to_source
-    @dbpath = exps.dbpath
-    @dbtable = exps.dbtable
-    @opt = exps.opt
-    @serialized_file = serialized_file
-  end
-
-  def run()
-    require 'open3'
-    require 'experiments'
-    pid = -1
-    pout = ''
-
-    @parser = eval(@parser_str)
-
-    # puts "running..."
-    c = @command % @params
-    # puts "#{c}\n--------------".black
-
-    Open3.popen2e(c) {|i,oe,waiter|
-      pid = waiter.pid
-      oe.each_line {|l|
-        pout += l
-        puts l.strip
-      }
-      exit_status = waiter.value
-      if not exit_status.success? then puts "Error!"; return end
-    }
-    results = @parser[pout]
-    if not results || results.size == 0 then puts "Error! No results."; return end
-
-    # box up data into an array (so we can easily handle multiple data records if needed)
-    results = [results] if results.is_a? Hash
-
-    results.each {|d|
-      new_record = params.merge(d)
-      ap new_record # print
-      insert(@dbpath, @dbtable, new_record) unless @opt[:noinsert]
-    }
-    return true # success
-  end
-
-  def to_s
-    Experiment.color_command(@command, @params)
-  end
-
-  def self.color_command(command, params)
-    '( '.blue +
-    '{ '.red + params.map{|n,p| "#{n}:".green + p.to_s.yellow}.join(', ') + ' }'.red +
-    ", " + (command % params).black +
-    ' )'.blue
-  end
-
-end
-
 module Igor
   extend self # this is probably a really terrible thing to do
 
@@ -229,12 +62,10 @@ module Igor
 
   @dbpath = nil
   @dbtable = nil
-  @db = Sequel.sqlite(@dbpath)
   @command = nil
   @params = {}
   @experiments = {}
   @jobs = {}
-  @running = Set.new
 
   def dsl(&dsl_code)
 
@@ -278,6 +109,7 @@ module Igor
   def database(dbpath, dbtable)
     @dbpath = File.expand_path(dbpath)
     @dbtable = dbtable
+    @db = Sequel.sqlite(@dbpath)
   end
   alias :db :database
 
@@ -317,6 +149,8 @@ module Igor
   end
   
   def view(a)
+    alias :v :view
+    
     begin
       j = @jobs[@job_aliases[a]]
       j.cat
@@ -327,6 +161,8 @@ module Igor
   end
   
   def attach(job_alias)
+    alias :a :attach
+    
     j = @jobs[@job_aliases[job_alias]]
     job_with_step = %x{ squeue --jobs=#{j.jobid} --steps --format %i }.split[1]
     if not job_with_step
@@ -348,26 +184,9 @@ module Igor
     end
   end
 
-  def update_jobs
-    jptr = FFI::MemoryPointer.new :pointer
-    Slurm.slurm_load_jobs(0, jptr, 0)
-    raise "unable to update jobs, slurm returned NULL" if jptr.get_pointer(0) == FFI::Pointer::NULL
-    jmsg = Slurm::JobInfoMsg.new(jptr.get_pointer(0))
-    
-    @jobs = {}
-    
-    (0...jmsg[:record_count]).each do |i|
-      sinfo = Slurm::JobInfo.new(jmsg[:job_array]+i*Slurm::JobInfo.size)
-      if sinfo[:user_id] == Process.uid
-        jobid = sinfo[:job_id]
-        @jobs[jobid] = BatchJob.new(jobid,sinfo)
-      end
-    end
-
-    Slurm.slurm_free_job_info_msg(jmsg)
-  end
-
   def status
+    alias :st :status
+    
     @job_aliases = {}
     update_jobs
     @jobs.each_with_index {|(id,job),index|
@@ -401,6 +220,25 @@ module Igor
   # Interactive methods
   ##########################
 
+  def update_jobs
+    jptr = FFI::MemoryPointer.new :pointer
+    Slurm.slurm_load_jobs(0, jptr, 0)
+    raise "unable to update jobs, slurm returned NULL" if jptr.get_pointer(0) == FFI::Pointer::NULL
+    jmsg = Slurm::JobInfoMsg.new(jptr.get_pointer(0))
+    
+    @jobs = {}
+    
+    (0...jmsg[:record_count]).each do |i|
+      sinfo = Slurm::JobInfo.new(jmsg[:job_array]+i*Slurm::JobInfo.size)
+      if sinfo[:user_id] == Process.uid
+        jobid = sinfo[:job_id]
+        @jobs[jobid] = BatchJob.new(jobid,sinfo)
+      end
+    end
+
+    Slurm.slurm_free_job_info_msg(jmsg)
+  end
+
   def igor_dir
     return "#{Dir.pwd}/.igor"
   end
@@ -415,7 +253,7 @@ module Igor
 
     File.open(f, 'w') {|o| o.write Marshal.dump(e) }
 
-    cmd = "#{File.dirname(__FILE__)}/igor_trampoline.rb '#{f}'"
+    cmd = "#{File.dirname(__FILE__)}/igor/igorun.rb '#{f}'"
 
     # make sure the allocation has at least 1 process
     p[:nnode] = 1 unless p[:nnode]
@@ -428,8 +266,6 @@ module Igor
     jobid = s[/Submitted batch job (\d+)/,1].to_i
 
     @jobs[jobid] = BatchJob.new(jobid)
-    @running << jobid
-
     @experiments[jobid] = e
   end
 

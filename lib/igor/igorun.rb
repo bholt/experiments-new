@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-require 'igor'
+require 'igor/experiment'
 e = Marshal.load(File.binread(ARGV[0]))
 puts "#{e}"
 success = e.run
