@@ -26,6 +26,7 @@ Igor do
   }
 
   params {
+    nnode 2; ppn 1
     a 1, 2
     b '1', '2', '3'
     c 'abc'
@@ -34,4 +35,5 @@ Igor do
 
   run { d 4; tag 'sample_tag' } # tag a set of runs as being part of a logical set 
 
+  interact
 end

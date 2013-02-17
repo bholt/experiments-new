@@ -148,9 +148,7 @@ module Igor
     end
   end
   
-  def view(a)
-    alias :v :view
-    
+  def view(a)    
     begin
       j = @jobs[@job_aliases[a]]
       j.cat
@@ -162,6 +160,7 @@ module Igor
   
   def attach(job_alias)
     alias :a :attach
+    alias :at :attach
     
     j = @jobs[@job_aliases[job_alias]]
     job_with_step = %x{ squeue --jobs=#{j.jobid} --steps --format %i }.split[1]
