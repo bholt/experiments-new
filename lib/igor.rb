@@ -57,10 +57,6 @@ module Igor
 
   extend Helpers::Sqlite
   extend Helpers::DSL
-  
-  module Console
-    extend Hirb::Console
-  end
 
   attr_reader :dbpath, :dbtable, :opt, :parser_file
 
@@ -109,7 +105,7 @@ module Igor
     return @command
   end
   alias :cmd :command
-
+  
   def database(dbpath, dbtable)
     @dbpath = File.expand_path(dbpath)
     @dbtable = dbtable
@@ -153,6 +149,7 @@ module Igor
     end
   end
   
+  
   def view(a)
     begin
       j = @jobs[@job_aliases[a]]
@@ -162,10 +159,9 @@ module Igor
     end
     return j.out_file
   end
+  alias :v :view
   
   def attach(job_alias)
-    alias :a :attach
-    alias :at :attach
     
     j = @jobs[@job_aliases[job_alias]]
     j.update
@@ -176,6 +172,7 @@ module Igor
         begin
           sleep 0.1 and j.update while j.state == :JOB_PENDING
         rescue
+          return
         end
       }
     end
@@ -199,10 +196,10 @@ module Igor
       end
     end
   end
+  alias :a :attach
+  alias :at :attach
 
-  def status
-    alias :st :status
-    
+  def status    
     @job_aliases = {}
     update_jobs
     @jobs.each_with_index {|(id,job),index|
@@ -214,12 +211,13 @@ module Igor
           (!(@params[k] || @common_info[k])) ||
           (@params[k].is_a? Array and @params[k].length > 1)
         }
-        puts "     " + p.to_s
+        puts "     " + p.pretty_s
       end
       # puts '------------------'.black
     }
     return 'status'
   end
+  alias :st :status
 
   # shortcut to provide the pry command-line to debug a remote process
   # usage looks something like: pry(#<Igor>)> .#{gdb 'n01', '11956'}
@@ -232,15 +230,17 @@ module Igor
     status
     self.pry
   end
-  
-  # display results (records in database), optionally takes a block to specify a custom query
-  # 
-  # usage:
-  #   results {|t| t.select(:field).where{value > 100}.order(:run_at) }
-  #
-  # default (without block) does:
-  #   results {|t| t.reverse_order(:run_at) }
-  def results(&blk)
+
+  # ----- Deprecated -----  
+  def print_results(&blk)
+    # print results (records in database), optionally takes a block to specify a custom query
+    # 
+    # usage:
+    #   results {|t| t.select(:field).where{value > 100}.order(:run_at) }
+    #
+    # default (without block) does:
+    #   results {|t| t.reverse_order(:run_at) }
+    
     if blk
       d = yield @db[@dbtable]
     else
@@ -269,10 +269,6 @@ module Igor
     end
 
     Slurm.slurm_free_job_info_msg(jmsg)
-  end
-
-  def igor_dir
-    return "#{Dir.pwd}/.igor"
   end
 
   def setup_experiment(p)
@@ -319,4 +315,17 @@ end # module Igor
 
 def Igor(&blk)
   Igor.dsl(&blk)
+end
+
+# Hirb (for better table output)
+begin
+  require 'pry'
+  require 'hirb'
+  Hirb.enable
+  old_print = Pry.config.print
+  Pry.config.print = proc do |output, value|
+    Hirb::View.view_or_page_output(value) || old_print.call(output, value)
+  end
+rescue LoadError
+  # Hirb is just bonus anyway...
 end
