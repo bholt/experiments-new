@@ -57,6 +57,10 @@ module Igor
 
   extend Helpers::Sqlite
   extend Helpers::DSL
+  
+  module Console
+    extend Hirb::Console
+  end
 
   attr_reader :dbpath, :dbtable, :opt, :parser_file
 
@@ -139,6 +143,7 @@ module Igor
 
   ######################
   # Interactive methods
+  
   def tail(a)
     begin
       j = @jobs[@job_aliases[a]]
@@ -148,7 +153,7 @@ module Igor
     end
   end
   
-  def view(a)    
+  def view(a)
     begin
       j = @jobs[@job_aliases[a]]
       j.cat
@@ -226,6 +231,22 @@ module Igor
   def interact
     status
     self.pry
+  end
+  
+  # display results (records in database), optionally takes a block to specify a custom query
+  # 
+  # usage:
+  #   results {|t| t.select(:field).where{value > 100}.order(:run_at) }
+  #
+  # default (without block) does:
+  #   results {|t| t.reverse_order(:run_at) }
+  def results(&blk)
+    if blk
+      d = yield @db[@dbtable]
+    else
+      d = @db[@dbtable].order(:run_at)
+    end
+    puts Hirb::Helpers::AutoTable.render(d.all) # (doesn't do automatic paging...)
   end
   
   # Interactive methods
