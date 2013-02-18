@@ -2,16 +2,32 @@ require_relative 'slurm_ffi'
 require_relative 'util'
 require 'file-tail'
 
+module JobOutput
+  def tail
+    stop_tailing = false
+    out.backward(10).tail {|l|
+      puts l
+      break if stop_tailing
+    }
+  end
+  def cat
+    out.seek(0)
+    puts out.read
+  end
+end
+
 class BatchJob
   attr_reader :jobid, :state, :nodes, :out_file
   def initialize(jobid,slurm_info=nil)
     @jobid = jobid
-    @out_file = BatchJob.fout.gsub(/%j/,jobid.to_s)
+    @out_file = BatchJob.fout(jobid)
     update(slurm_info) if slurm_info
   end
   
-  def self.fout
-    "#{Igor.igor_dir}/igor.%j.out"
+  def self.fout(jobid=nil)
+    s = "#{Igor.igor_dir}/igor.%j.out"
+    s.gsub!(/%j/, jobid.to_s) if jobid
+    return s
   end
 
   def update(sinfo=nil)
@@ -42,15 +58,6 @@ class BatchJob
   end
   def total_time()   Time.at(@end_time - @start_time).gmtime.strftime('%R:%S') end
   def out()          @out ||= File.open(@out_file, 'r') end
-  def tail
-    stop_tailing = false
-    out.backward(10).tail {|l|
-      puts l
-      break if stop_tailing
-    }
-  end
-  def cat
-    out.seek(0)
-    puts out.read
-  end
+  
+  include JobOutput
 end

@@ -2,7 +2,7 @@ require 'experiments'
 
 # monkeypatching
 class Hash
-  def to_s
+  def pretty_s
     '{ '.red + map{|n,p| "#{n}:".green + p.to_s.yellow}.join(', ') + ' }'.red
   end
 

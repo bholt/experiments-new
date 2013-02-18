@@ -1,4 +1,5 @@
 require_relative 'util'
+require_relative 'batchjob'
 
 class Experiment
   include Helpers::Sqlite
@@ -22,6 +23,9 @@ class Experiment
     pout = ''
 
     @parser = eval(@parser_str)
+
+    @params[:jobid] = ENV['SLURM_JOBID'].to_i
+    @params[:outfile] = BatchJob.fout(@params[:jobid])
 
     # puts "running..."
     c = @command % @params
@@ -50,7 +54,11 @@ class Experiment
     return true # success
   end
 
-  def to_s(plain=false)
+  def to_s
+    "(#{params}, #{command})"
+  end
+    
+  def pretty_s
     Experiment.color_command(@command, @params)
   end
 

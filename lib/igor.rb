@@ -151,13 +151,22 @@ module Igor
   
   
   def view(a)
-    begin
+    # View output from batch job. Interprets a number as a job alias and looks it up,
+    # interprets a String as the path of the output file itself.
+    
+    if a.is_a? Integer
       j = @jobs[@job_aliases[a]]
       j.cat
-    rescue
-      puts "Unable to cat alias: #{a}, job: #{@job_aliases[a]}."
+    elsif a.is_a? String
+      File.open(a,'r') {|f| puts f.read }
     end
-    return j.out_file
+    
+    # begin
+      # j.cat
+    # rescue
+      # puts "Unable to cat [#{a}]."
+    # end
+    # return j.out_file
   end
   alias :v :view
   
