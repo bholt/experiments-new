@@ -31,7 +31,7 @@ end
 # /monkeypatching
 
 module Signal
-  def scoped_trap(signal, handler, &blk)
+  def self.scoped_trap(signal, handler, &blk)
     prev = Signal.trap(signal, &handler)
     yield
     Signal.trap(signal, prev)
