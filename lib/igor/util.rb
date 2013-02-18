@@ -28,6 +28,16 @@ class Array
     reduce(true) {|total,v| total &&= v.respond_to? :/ }
   end
 end
+# /monkeypatching
+
+module Signal
+  def scoped_trap(signal, handler, &blk)
+    prev = Signal.trap(signal, &handler)
+    yield
+    Signal.trap(signal, prev)
+  end
+end
+
 
 module Helpers
   module Sqlite

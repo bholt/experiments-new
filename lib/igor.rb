@@ -163,6 +163,18 @@ module Igor
     alias :at :attach
     
     j = @jobs[@job_aliases[job_alias]]
+    j.update
+    
+    if j.state == :JOB_PENDING
+      puts "job pending..."
+      Signal.scoped_trap("INT", ->{ raise }) {
+        begin
+          sleep 0.1 and j.update while j.state == :JOB_PENDING
+        rescue
+        end
+      }
+    end
+    
     job_with_step = %x{ squeue --jobs=#{j.jobid} --steps --format %i }.split[1]
     if not job_with_step
       puts "Job step not found, might have finished already. Try `view #{job_alias}`"
