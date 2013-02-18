@@ -253,6 +253,32 @@ module Igor
     puts Hirb::Helpers::AutoTable.render(d.all) # (doesn't do automatic paging...)
   end
   
+  # Get new handle for a dataset from the results database.
+  # This handle is actually a `Sequel::Model`, which means it has lots of useful little things
+  # you can do with it.
+  # 
+  # Example usage:
+  # print all results:
+  # > results.all
+  # get field value from result with given id:
+  # > results[12].nnode
+  # 
+  def results(&blk)
+    if blk
+      d = yield results_filter
+    else
+      d = results_filter
+    end
+    return Class.new(Sequel::Model) { set_dataset d }
+  end
+  
+  def results_filter=(dataset)
+    @results_filter = dataset
+  end
+  def results_filter
+    @results_filter ||= @db[@dbtable]
+  end
+  
   # Interactive methods
   ##########################
 
