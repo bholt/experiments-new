@@ -42,7 +42,6 @@ end
 module Helpers
   module Sqlite
     def insert(dbpath, dbtable, record)
-      puts 'inserting...'
       @db ||= Sequel.sqlite(dbpath)
      
       # ensure there are fields to hold this record

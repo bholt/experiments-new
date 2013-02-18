@@ -44,13 +44,13 @@ class Experiment
 
     results.each {|d|
       new_record = params.merge(d)
-      ap new_record # print
+      puts new_record # print
       insert(@dbpath, @dbtable, new_record) unless @opt[:noinsert]
     }
     return true # success
   end
 
-  def to_s
+  def to_s(plain=false)
     Experiment.color_command(@command, @params)
   end
 

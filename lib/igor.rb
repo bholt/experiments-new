@@ -114,7 +114,7 @@ module Igor
   alias :db :database
 
   # Run a set of experiments, merging this block's params into @params.
-  def run(&blk) enumerate_experiments(Params.new(&blk)) end
+  def run(&blk) enumerate_experiments(Params.new(&blk)); status end
 
   # Parser
   def parser(&blk)
@@ -179,7 +179,7 @@ module Igor
     if not job_with_step
       puts "Job step not found, might have finished already. Try `view #{job_alias}`"
       return
-    end 
+    end
     
     PTY.spawn "sattach #{job_with_step}" do |r,w,pid|
       Signal.trap("INT") { puts "exiting..."; Process.kill("INT",pid) }

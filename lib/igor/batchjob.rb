@@ -14,7 +14,7 @@ class BatchJob
     "#{Igor.igor_dir}/igor.%j.out"
   end
 
-  def update(sinfo)
+  def update(sinfo=nil)
     jmsg = nil
     if not sinfo
       jptr = FFI::MemoryPointer.new :pointer
