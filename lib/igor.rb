@@ -177,7 +177,11 @@ module Igor
       }
     end
     
-    job_with_step = %x{ squeue --jobs=#{j.jobid} --steps --format %i }.split[1]
+    begin
+      sleep 0.5 # give squeue time to get itself together
+      job_with_step = %x{ squeue --jobs=#{j.jobid} --steps --format %i }.split[1]
+    end while j.state == :JOB_RUNNING && (job_with_step == nil)
+    
     if not job_with_step
       puts "Job step not found, might have finished already. Try `view #{job_alias}`"
       return
