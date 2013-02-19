@@ -233,7 +233,7 @@ module Igor
       if @experiments.include? id  # if this job is one of our experiments...
         # print interesting parameters
         p = @experiments[id].params.select{|k,v|
-          (!(@params[k] || @common_info[k])) ||
+          not(@params[k] || @common_info[k] || k == :command) ||
           (@params[k].is_a? Array and @params[k].length > 1) ||
           (@interesting.include? k)
         }
@@ -356,6 +356,7 @@ module Igor
   def enumerate_experiments(override_params)
     params = @params.merge(@common_info).merge(override_params)
     enumerate_exps(params) do |p|
+      p[:command] = @command % p  # make sure substitution goes already, use in run_already? check
       
       if (not @opt[:dry_run]) && ((not run_already?(p)) || @opt[:force])
         setup_experiment(p)
