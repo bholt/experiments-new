@@ -166,13 +166,6 @@ module Igor
     elsif a.is_a? String
       File.open(a,'r') {|f| puts f.read }
     end
-    
-    # begin
-      # j.cat
-    # rescue
-      # puts "Unable to cat [#{a}]."
-    # end
-    # return j.out_file
   end
   alias :v :view
   
@@ -354,7 +347,7 @@ module Igor
       # e = Experiment.new(c, p)
       print "Experiment".blue; puts Experiment.color_command(@command, p)
 
-      if not @opt[:dry_run] && (not run_already?(@dbtable, p, @db) || @opt[:force])
+      if (not @opt[:dry_run]) && ((not run_already?(p)) || @opt[:force])
         # jobid = run_experiment(e)
         setup_experiment(p)
       end

@@ -49,6 +49,15 @@ module Helpers
 
       tbl.insert(record)
     end
+    
+    def run_already?(params)
+      p = params.select{|k,v| k != :run_at }
+  
+      # make sure all fields in params are existing columns, then query database
+      return @db.table_exists?(@dbtable) \
+          && (params.keys - @db[@dbtable].columns).empty? \
+          && @db[@dbtable].filter(p).count > 0
+    end
   end
 
   module DSL
