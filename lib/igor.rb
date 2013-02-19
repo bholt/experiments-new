@@ -69,11 +69,10 @@ module Igor
   @interesting = Set.new
 
   def dsl(&dsl_code)
+    @opt = parse_cmdline()
     
     # fill 'params' with things like 'tag', 'run_at', etc. that are not usually specified
     @common_info = common_info()
-
-    @opt = parse_cmdline()
 
     # make sure directory where we'll put things exists
     begin Dir.mkdir(igor_dir) rescue Errno::EEXIST end
@@ -115,11 +114,25 @@ module Igor
   alias :db :database
 
   # Run a set of experiments, merging this block's params into @params.
-  def run(&blk)
+  # Also takes a hash of options that replace the global @opt for this set of runs
+  def run(opts={},&blk)
+    if opts.size > 0
+      saved_opts = @opt.clone
+      @opt.merge!(opts)
+    end
+    
     p = Params.new(&blk)
     @interesting += p.keys   # any key in a 'run' is interesting enough to be displayed
     enumerate_experiments(p)
     status
+    
+    @opt = saved_opts if saved_opts  # restore
+    return  # no return value
+  end
+  
+  # shortcut to call `run` with :force => true.
+  def run_forced(opts={},&blk)
+    run(opts.merge({force:true}), &blk)
   end
 
   # Parser
@@ -343,14 +356,14 @@ module Igor
   def enumerate_experiments(override_params)
     params = @params.merge(@common_info).merge(override_params)
     enumerate_exps(params) do |p|
-      # c = @command % p
-      # e = Experiment.new(c, p)
-      print "Experiment".blue; puts Experiment.color_command(@command, p)
-
+      
       if (not @opt[:dry_run]) && ((not run_already?(p)) || @opt[:force])
-        # jobid = run_experiment(e)
         setup_experiment(p)
+      else
+        print "<skipped> ".red
       end
+      
+      print "Experiment".blue; puts Experiment.color_command(@command, p)      
     end
   end
 

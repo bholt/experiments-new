@@ -41,7 +41,7 @@ class Experiment
       if not exit_status.success? then puts "Error!"; return end
     }
     results = @parser[pout]
-    if not results || results.size == 0 then puts "Error! No results."; return end
+    if not results or (results.size == 0) then puts "Error! No results."; return end
 
     # box up data into an array (so we can easily handle multiple data records if needed)
     results = [results] if results.is_a? Hash
