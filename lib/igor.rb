@@ -274,19 +274,23 @@ module Igor
   # 
   def results(&blk)
     if blk
-      d = yield results_filter
+      d = yield @db[@dbtable]
     else
-      d = results_filter
+      d = @db[@dbtable]
     end
     return Class.new(Sequel::Model) { set_dataset d }
   end
-  
-  def results_filter=(dataset)
-    @results_filter = dataset
-  end
-  def results_filter
-    @results_filter ||= @db[@dbtable]
-  end
+
+  # doesn't currently work ('create_or_replace_view' unsupported for SQLite, or Sequel bug?)
+  # def results_filter(dataset=nil,&blk)
+  #   if blk
+  #     dataset = yield @db[@dbtable]
+  #   end
+  #   if dataset || blk
+  #     @db.create_or_replace_view(:temp, dataset)
+  #   end
+  #   return results{|t| t.from(:temp)}
+  # end
   
   # Interactive methods
   ##########################
