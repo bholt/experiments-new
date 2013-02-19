@@ -66,9 +66,10 @@ module Igor
   @params = {}
   @experiments = {}
   @jobs = {}
+  @interesting = Set.new
 
   def dsl(&dsl_code)
-
+    
     # fill 'params' with things like 'tag', 'run_at', etc. that are not usually specified
     @common_info = common_info()
 
@@ -114,7 +115,12 @@ module Igor
   alias :db :database
 
   # Run a set of experiments, merging this block's params into @params.
-  def run(&blk) enumerate_experiments(Params.new(&blk)); status end
+  def run(&blk)
+    p = Params.new(&blk)
+    @interesting += p.keys   # any key in a 'run' is interesting enough to be displayed
+    enumerate_experiments(p)
+    status
+  end
 
   # Parser
   def parser(&blk)
@@ -222,7 +228,8 @@ module Igor
         # print interesting parameters
         p = @experiments[id].params.select{|k,v|
           (!(@params[k] || @common_info[k])) ||
-          (@params[k].is_a? Array and @params[k].length > 1)
+          (@params[k].is_a? Array and @params[k].length > 1) ||
+          (@interesting.include? k)
         }
         puts "     " + p.pretty_s
       end
