@@ -5,8 +5,7 @@ exe = 'graph.exe'
 
 Igor do
   database 'sample_igor.db', :test
-  # command  "echo '%{a} %{b} %{c}'"
-  command "srun #{File.dirname(__FILE__)}/../examples/slow_loop.sh"
+  command "srun #{File.dirname(__FILE__)}/slow_loop.sh %{a} %{b} %{c}"
   
   sbatch_flags "--time=30:00 #{
       (`hostname` =~ /pal/) \
@@ -22,7 +21,8 @@ Igor do
 
   # beware: the literal source given will be eval'd to create the parser for each job, no state will be transfered
   parser {|cmdout|
-    /(?<ao>\d+)\s+(?<bo>\d+)\s+(?<co>\w+)/.match(cmdout).dictionize
+    m = /(?<ao>\d+)\s+(?<bo>\d+)\s+(?<co>\w+)/.match(cmdout)
+    m.dictionize if m
   }
 
   params {
