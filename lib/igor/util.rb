@@ -1,6 +1,6 @@
 require 'experiments'
 
-# monkeypatching
+# monkeypatching to add generally helpful stuff
 class Hash
   def pretty_s
     '{ '.red + map{|n,p| "#{n}:".green + p.to_s.yellow}.join(', ') + ' }'.red
@@ -28,6 +28,19 @@ class Array
     reduce(true) {|total,v| total &&= v.respond_to? :/ }
   end
 end
+
+class MatchData
+  def dictionize
+    h = {}
+    names .zip captures do |name, cap|
+      if cap then
+        h[name.to_sym] = cap.match(REG_NUM) ? cap.to_f : cap
+      end
+    end
+    return h
+  end
+end
+
 # /monkeypatching
 
 module Signal
