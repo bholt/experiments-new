@@ -287,7 +287,12 @@ module Igor
   # 
   def results(&blk)
     if blk
-      d = yield @db[@dbtable]
+      # same as DSL eval: if they want a handle, give it to 'em
+      if blk.arity == 1
+        d = yield @db[@dbtable]
+      else # otherwise just evaluate directly on the dataset (implicit 'self')
+        d = @db[@dbtable].instance_eval(&blk)
+      end
     else
       d = @db[@dbtable]
     end
