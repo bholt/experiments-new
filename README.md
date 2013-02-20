@@ -24,3 +24,16 @@ If you haven't already, clone the project locally:
 
 # Examples
 The file `run_sample.rb` contains a toy run script for use in an application. This can be placed anywhere convenient and modified for your own use. See the file for more information about usage. The `examples` directory contains more realistic scripts used in [Grappa](http://sampa.cs.washington.edu/grappa). In particular, they contain more useful output parsers.
+
+
+## Igor (new name brainstorming)
+Lab Assistant
+I: interactive, investigat{e,or}
+G: guide, gatherer
+O: of
+R: results, ruby
+
+Interactive Guide for Our Research
+Interactive Gatherer Of Results
+
+Interactive Guide Of Research
