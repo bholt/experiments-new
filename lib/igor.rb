@@ -192,10 +192,10 @@ module Igor
       Signal.scoped_trap("INT", ->{ raise }) {
         begin
           sleep 0.1 and j.update while j.state == :JOB_PENDING
-        rescue
-          return
+        rescue # catch ctrl-c safely, will return below
         end
       }
+      return if j.state == :JOB_PENDING
     end
     
     begin
