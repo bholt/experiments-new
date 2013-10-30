@@ -1,7 +1,7 @@
 # Experiments
 --------------
 
-Testing.
+Testing 1, 2, 3.
 
 This library consists entirely of a single Ruby source file: `experiments.rb`
 
